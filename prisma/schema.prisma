@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  cutting_supervisor
+  cutting_verifier
+  sewing_supervisor
+}
+
+enum CuttingOrderStatus {
+  CUTTING_IN_PROGRESS
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+  SEWING_IN_PROGRESS
+}
+
+enum VerificationStatus {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum VerificationDecision {
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  passwordHash     String            @map("password_hash")
+  fullName         String            @map("full_name")
+  role             UserRole
+  createdAt        DateTime          @default(now()) @map("created_at")
+  cuttingOrders    CuttingOrder[]
+  verificationLogs VerificationLog[]
+
+  @@map("users")
+}
+
+model Recipe {
+  id             String  @id @default(cuid())
+  recipeCode     String  @unique @map("recipe_code")
+  name           String
+  category       String
+  stdFabricYards Decimal @map("std_fabric_yards") @db.Decimal(10, 2)
+  wastageCap     Decimal @map("wastage_cap") @db.Decimal(5, 2)
+
+  components    RecipeComponent[]
+  cuttingOrders CuttingOrder[]
+
+  @@map("recipes")
+}
+
+model RecipeComponent {
+  id               String  @id @default(cuid())
+  recipeId         String  @map("recipe_id")
+  componentName    String  @map("component_name")
+  piecesPerGarment Int     @map("pieces_per_garment")
+  imageUrl         String? @map("image_url")
+
+  recipe            Recipe             @relation(fields: [recipeId], references: [id])
+  verificationItems VerificationItem[]
+
+  @@unique([recipeId, componentName])
+  @@map("recipe_components")
+}
+
+model CuttingOrder {
+  id              String             @id @default(cuid())
+  orderNo         String             @unique @map("order_no")
+  recipeId        String             @map("recipe_id")
+  targetQty       Int                @map("target_qty")
+  fabricRollId    String             @map("fabric_roll_id")
+  actualFabricYds Decimal            @map("actual_fabric_yds") @db.Decimal(10, 2)
+  status          CuttingOrderStatus @default(CUTTING_IN_PROGRESS)
+  createdBy       String             @map("created_by")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  recipe  Recipe @relation(fields: [recipeId], references: [id])
+  creator User   @relation(fields: [createdBy], references: [id])
+
+  verificationItems VerificationItem[]
+  verificationLogs  VerificationLog[]
+
+  @@index([status])
+  @@map("cutting_orders")
+}
+
+model VerificationItem {
+  id          String              @id @default(cuid())
+  orderId     String              @map("order_id")
+  componentId String              @map("component_id")
+  expectedQty Int                 @map("expected_qty")
+  actualQty   Int?                @map("actual_qty")
+  status      VerificationStatus?
+
+  order     CuttingOrder    @relation(fields: [orderId], references: [id])
+  component RecipeComponent @relation(fields: [componentId], references: [id])
+
+  @@unique([orderId, componentId])
+  @@map("verification_items")
+}
+
+model VerificationLog {
+  id             String               @id @default(cuid())
+  orderId        String               @map("order_id")
+  verifierId     String               @map("verifier_id")
+  decision       VerificationDecision
+  rejectionNote  String?              @map("rejection_note")
+  wastagePct     Decimal?             @map("wastage_pct") @db.Decimal(8, 2)
+  countVariances Json                 @map("count_variances")
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  order    CuttingOrder @relation(fields: [orderId], references: [id])
+  verifier User         @relation(fields: [verifierId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@map("verification_logs")
+}
