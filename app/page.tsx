@@ -1,58 +1,97 @@
+
+import { Suspense } from "react";
+
 import StatCard from "@/components/dashboard/StatCard";
 import OrdersTable, {
   type CuttingOrder,
 } from "@/components/dashboard/OrdersTable";
+import { prisma } from "@/lib/prisma";
 
-type DashboardStat = {
-  title: string;
-  value: number;
-  color: string;
-};
+// Dynamic Server Component
+async function DashboardContent() {
+  const [
+    totalBatches,
+    pendingBatches,
+    verifiedBatches,
+    rejectedBatches,
+    databaseOrders,
+  ] = await Promise.all([
+    prisma.cuttingOrder.count(),
 
-const stats: DashboardStat[] = [
-  {
-    title: "Total Batches",
-    value: 24,
-    color: "text-blue-600",
-  },
-  {
-    title: "Pending Verification",
-    value: 8,
-    color: "text-amber-600",
-  },
-  {
-    title: "Verified Batches",
-    value: 13,
-    color: "text-green-600",
-  },
-  {
-    title: "Rejected Batches",
-    value: 3,
-    color: "text-red-600",
-  },
-];
+    prisma.cuttingOrder.count({
+      where: { status: "PENDING_VERIFICATION" },
+    }),
 
-const orders: CuttingOrder[] = [
-  {
-    id: "CUT-001",
-    recipe: "Casual Blouse",
-    quantity: 50,
-    status: "PENDING_VERIFICATION",
-  },
-  {
-    id: "CUT-002",
-    recipe: "Crop Top",
-    quantity: 100,
-    status: "VERIFIED",
-  },
-  {
-    id: "CUT-003",
-    recipe: "Casual Blouse",
-    quantity: 75,
-    status: "REJECTED",
-  },
-];
+    prisma.cuttingOrder.count({
+      where: { status: "VERIFIED" },
+    }),
 
+    prisma.cuttingOrder.count({
+      where: { status: "REJECTED" },
+    }),
+
+    prisma.cuttingOrder.findMany({
+      include: {
+        recipe: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 10,
+    }),
+  ]);
+
+  const stats = [
+    {
+      title: "Total Batches",
+      value: totalBatches,
+      color: "text-blue-600",
+    },
+    {
+      title: "Pending Verification",
+      value: pendingBatches,
+      color: "text-amber-600",
+    },
+    {
+      title: "Verified Batches",
+      value: verifiedBatches,
+      color: "text-green-600",
+    },
+    {
+      title: "Rejected Batches",
+      value: rejectedBatches,
+      color: "text-red-600",
+    },
+  ];
+
+  const orders: CuttingOrder[] = databaseOrders.map(
+    (order) => ({
+      id: order.orderNo,
+      recipe: order.recipe.name,
+      quantity: order.targetQty,
+      status: order.status,
+    })
+  );
+
+  return (
+    <>
+      <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
+        {stats.map((stat) => (
+          <StatCard
+            key={stat.title}
+            title={stat.title}
+            value={stat.value}
+            color={stat.color}
+          />
+        ))}
+      </section>
+
+      <OrdersTable orders={orders} />
+    </>
+  );
+}
+
+// Static page shell
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-slate-100 p-6 md:p-10">
@@ -68,22 +107,22 @@ export default function HomePage() {
           </p>
 
           <p className="mt-1 text-sm text-slate-500">
-            UI Prototype — Sample Data
+            Database-Driven Dashboard
           </p>
         </header>
-      
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
-           {stats.map((stat) => (
-           <StatCard
-             key={stat.title}
-            title={stat.title}
-            value={stat.value}
-            color={stat.color}
-            />
-            ))}
-        </section>
 
-        <OrdersTable orders={orders} />
+        <Suspense
+          fallback={
+            <div
+              role="status"
+              className="rounded-xl border border-slate-200 bg-white p-8 text-slate-600"
+            >
+              Loading production dashboard...
+            </div>
+          }
+        >
+          <DashboardContent />
+        </Suspense>
 
       </div>
     </main>
