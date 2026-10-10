@@ -6,9 +6,29 @@ import OrdersTable, {
   type CuttingOrder,
 } from "@/components/dashboard/OrdersTable";
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import {
+  requireUser,
+  AuthenticationError,
+} from "@/lib/authorization";
 
 // Dynamic Server Component
+
 async function DashboardContent() {
+  // Verify the user's session on the server.
+  
+try {
+  await requireUser();
+} catch (error) {
+  if (error instanceof AuthenticationError) {
+    redirect("/login");
+  }
+
+  throw error;
+}
+
+
+  // Existing Prisma queries continue below.
   const [
     totalBatches,
     pendingBatches,
