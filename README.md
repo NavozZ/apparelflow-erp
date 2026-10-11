@@ -182,9 +182,9 @@ Use the visible **Demo Role Selection** panel to choose a factory role. Selectin
 
 | Role | Demo Email | Password |
 |---|---|---|
-| Cutting Supervisor | `cutting.supervisor@example.com` | `REPLACE_WITH_DEDICATED_SUPERVISOR_PASSWORD` |
-| Cutting Verifier | `cutting.verifier@example.com` | `REPLACE_WITH_DEDICATED_VERIFIER_PASSWORD` |
-| Sewing Supervisor | `sewing.supervisor@example.com` | `REPLACE_WITH_DEDICATED_SEWING_PASSWORD` |
+| Cutting Supervisor | `cutting.supervisor@example.com` | `34d730f301ff11e9d7753946a81a72e0` |
+| Cutting Verifier | `cutting.verifier@example.com` | `270acecd8c45302c4d90225987462420` |
+| Sewing Supervisor | `sewing.supervisor@example.com` | `b1e3eb4c56a85d5920134421e05e37b6` |
 
 > **Before submitting:** Replace every password placeholder with the corresponding **working, assessment-only demo account password**. The placeholders above are not valid login credentials. Verify that the accounts use those passwords. Never publish a password reused for another service, an administrative account, or a real production user. This is a public GitHub repository, so any password committed here will be publicly visible and remain in Git history. Rotate or disable these demo credentials after evaluation.
 
