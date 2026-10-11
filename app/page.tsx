@@ -1,34 +1,34 @@
 
 import { Suspense } from "react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import StatCard from "@/components/dashboard/StatCard";
 import OrdersTable, {
   type CuttingOrder,
 } from "@/components/dashboard/OrdersTable";
+
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
 import {
   requireUser,
   AuthenticationError,
 } from "@/lib/authorization";
 
-// Dynamic Server Component
-
+// Dynamic dashboard content: authentication + database queries
 async function DashboardContent() {
-  // Verify the user's session on the server.
-  
-try {
-  await requireUser();
-} catch (error) {
-  if (error instanceof AuthenticationError) {
-    redirect("/login");
+  let currentUser: Awaited<ReturnType<typeof requireUser>>;
+
+  try {
+    currentUser = await requireUser();
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      redirect("/login");
+    }
+
+    throw error;
   }
 
-  throw error;
-}
-
-
-  // Existing Prisma queries continue below.
+  // Fetch live statistics and recent orders from PostgreSQL
   const [
     totalBatches,
     pendingBatches,
@@ -39,15 +39,21 @@ try {
     prisma.cuttingOrder.count(),
 
     prisma.cuttingOrder.count({
-      where: { status: "PENDING_VERIFICATION" },
+      where: {
+        status: "PENDING_VERIFICATION",
+      },
     }),
 
     prisma.cuttingOrder.count({
-      where: { status: "VERIFIED" },
+      where: {
+        status: "VERIFIED",
+      },
     }),
 
     prisma.cuttingOrder.count({
-      where: { status: "REJECTED" },
+      where: {
+        status: "REJECTED",
+      },
     }),
 
     prisma.cuttingOrder.findMany({
@@ -84,17 +90,52 @@ try {
     },
   ];
 
+  // Keep the database ID separate from the visible order number.
+  // Submit API requires the actual database ID.
   const orders: CuttingOrder[] = databaseOrders.map(
     (order) => ({
-      id: order.orderNo,
+      id: order.id,
+      orderNo: order.orderNo,
       recipe: order.recipe.name,
       quantity: order.targetQty,
+      createdBy: order.createdBy,
       status: order.status,
     })
   );
 
   return (
     <>
+      {/* Role-based navigation */}
+      <nav className="mb-8 flex flex-wrap gap-3">
+        {currentUser.role === "cutting_supervisor" && (
+          <Link
+            href="/cutting-orders/new"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            + New Cutting Order
+          </Link>
+        )}
+
+        {currentUser.role === "cutting_verifier" && (
+          <Link
+            href="/verification"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Pending Verifications
+          </Link>
+        )}
+
+        {currentUser.role === "sewing_supervisor" && (
+          <Link
+            href="/sewing"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Sewing Queue
+          </Link>
+        )}
+      </nav>
+
+      {/* Dashboard statistics */}
       <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
         {stats.map((stat) => (
           <StatCard
@@ -106,7 +147,12 @@ try {
         ))}
       </section>
 
-      <OrdersTable orders={orders} />
+      {/* Recent cutting orders with role-based actions */}
+      <OrdersTable
+        orders={orders}
+        currentUserId={currentUser.id}
+        currentUserRole={currentUser.role}
+      />
     </>
   );
 }
@@ -116,7 +162,6 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-slate-100 p-6 md:p-10">
       <div className="mx-auto max-w-6xl">
-
         <header className="mb-10">
           <h1 className="text-3xl font-bold text-slate-900">
             ApparelFlow ERP
@@ -143,7 +188,6 @@ export default function HomePage() {
         >
           <DashboardContent />
         </Suspense>
-
       </div>
     </main>
   );

@@ -1,8 +1,12 @@
 
+import SubmitForVerificationButton from "@/components/cutting/SubmitForVerificationButton";
+
 export type CuttingOrder = {
   id: string;
+  orderNo: string;
   recipe: string;
   quantity: number;
+  createdBy: string;
   status:
     | "CUTTING_IN_PROGRESS"
     | "PENDING_VERIFICATION"
@@ -13,6 +17,8 @@ export type CuttingOrder = {
 
 type OrdersTableProps = {
   orders: CuttingOrder[];
+  currentUserId: string;
+  currentUserRole: string;
 };
 
 const statusColors: Record<CuttingOrder["status"], string> = {
@@ -25,6 +31,8 @@ const statusColors: Record<CuttingOrder["status"], string> = {
 
 export default function OrdersTable({
   orders,
+  currentUserId,
+  currentUserRole,
 }: OrdersTableProps) {
   return (
     <section className="mt-10 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -36,40 +44,60 @@ export default function OrdersTable({
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-slate-200 text-sm text-slate-600">
-              <th className="p-3">Order ID</th>
+              <th className="p-3">Order Number</th>
               <th className="p-3">Recipe</th>
               <th className="p-3">Quantity</th>
               <th className="p-3">Status</th>
+              <th className="p-3">Action</th>
             </tr>
           </thead>
 
           <tbody>
-            {orders.map((order) => (
-              <tr
-                key={order.id}
-                className="border-b border-slate-100"
-              >
-                <td className="p-3 text-slate-900">
-                  {order.id}
-                </td>
+            {orders.map((order) => {
+              const canSubmit =
+                currentUserRole === "cutting_supervisor" &&
+                currentUserId === order.createdBy &&
+                order.status === "CUTTING_IN_PROGRESS";
 
-                <td className="p-3 text-slate-700">
-                  {order.recipe}
-                </td>
+              return (
+                <tr
+                  key={order.id}
+                  className="border-b border-slate-100"
+                >
+                  <td className="p-3 text-sm text-slate-900">
+                    {order.orderNo}
+                  </td>
 
-                <td className="p-3 text-slate-700">
-                  {order.quantity}
-                </td>
+                  <td className="p-3 text-sm text-slate-700">
+                    {order.recipe}
+                  </td>
 
-                <td className="p-3">
-                  <span
-                    className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${statusColors[order.status]}`}
-                  >
-                    {order.status.replaceAll("_", " ")}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  <td className="p-3 text-sm text-slate-700">
+                    {order.quantity}
+                  </td>
+
+                  <td className="p-3">
+                    <span
+                      className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${statusColors[order.status]}`}
+                    >
+                      {order.status.replaceAll("_", " ")}
+                    </span>
+                  </td>
+
+                  <td className="p-3">
+                    {canSubmit ? (
+                      <SubmitForVerificationButton
+                        orderId={order.id}
+                      />
+                    ) : (
+                      <span className="text-xs text-slate-400">
+                        —
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
