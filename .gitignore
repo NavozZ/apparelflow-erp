@@ -49,4 +49,7 @@ next-env.d.ts
 skills-lock.json
 
 # Generated Prisma Client (regenerated during build)
-generated/prisma/
+generated/prisma/security-audit.json
+
+# Local security audit report
+/security-audit.json
