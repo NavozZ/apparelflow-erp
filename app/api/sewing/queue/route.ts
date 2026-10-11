@@ -1,6 +1,6 @@
 
 import { NextResponse } from "next/server";
-
+import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   requireRole,
@@ -9,6 +9,8 @@ import {
 } from "@/lib/authorization";
 
 export async function GET() {
+
+  await connection();
   try {
     // Only Sewing Supervisors may access this queue.
     await requireRole(["sewing_supervisor"]);
