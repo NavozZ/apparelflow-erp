@@ -14,7 +14,10 @@ type RouteContext = {
 };
 
 class ApprovalBlockedError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly statusCode: 404 | 409 | 422 = 409
+  ) {
     super(message);
     this.name = "ApprovalBlockedError";
   }
@@ -25,7 +28,9 @@ export async function POST(
   { params }: RouteContext
 ) {
   try {
+    // Only Cutting Verifiers can approve orders.
     const verifier = await requireRole(["cutting_verifier"]);
+
     const { id: orderId } = await params;
 
     if (!orderId) {
@@ -37,8 +42,9 @@ export async function POST(
 
     const result = await prisma.$transaction(
       async (tx) => {
-        // Lock this order while checking and approving it.
-        // Competing approval requests cannot bypass the checks.
+        // Lock the parent cutting order.
+        // Component PATCH and rejection transactions
+        // also use this lock.
         const lockedRows = await tx.$queryRaw<
           { id: string }[]
         >`
@@ -50,7 +56,8 @@ export async function POST(
 
         if (lockedRows.length === 0) {
           throw new ApprovalBlockedError(
-            "Cutting order not found"
+            "Cutting order not found",
+            404
           );
         }
 
@@ -66,28 +73,35 @@ export async function POST(
           },
         });
 
+        // Only pending orders can be approved.
         if (!order || order.status !== "PENDING_VERIFICATION") {
           throw new ApprovalBlockedError(
-            "Order is not pending verification"
+            "Order is not pending verification",
+            409
           );
         }
 
+        // Prevent approval when the order has no components.
         if (order.verificationItems.length === 0) {
           throw new ApprovalBlockedError(
-            "No verification components found"
+            "No verification components found",
+            422
           );
         }
 
+        // Every component must have a recorded actual count.
         const incomplete = order.verificationItems.some(
           (item) => item.actualQty === null
         );
 
         if (incomplete) {
           throw new ApprovalBlockedError(
-            "All component quantities must be recorded"
+            "All component quantities must be recorded",
+            422
           );
         }
 
+        // A single shortage must block approval.
         const shortages = order.verificationItems.filter(
           (item) =>
             item.actualQty === null ||
@@ -96,17 +110,21 @@ export async function POST(
 
         if (shortages.length > 0) {
           throw new ApprovalBlockedError(
-            "Approval blocked: one or more components have shortages"
+            "Approval blocked: one or more components have shortages",
+            422
           );
         }
 
+        // Calculate the fabric requirement with Prisma Decimal
+        // to avoid floating-point precision problems.
         const standardFabric = new Prisma.Decimal(
           order.recipe.stdFabricYards
         ).mul(order.targetQty);
 
         if (standardFabric.lte(0)) {
           throw new ApprovalBlockedError(
-            "Invalid standard fabric quantity"
+            "Invalid standard fabric quantity",
+            422
           );
         }
 
@@ -117,24 +135,29 @@ export async function POST(
           .div(standardFabric)
           .mul(100);
 
+        // Block approval if the recipe's wastage cap is exceeded.
         if (wastagePct.gt(order.recipe.wastageCap)) {
           throw new ApprovalBlockedError(
-            "Approval blocked: fabric wastage exceeds recipe cap"
+            "Approval blocked: fabric wastage exceeds recipe cap",
+            422
           );
         }
 
+        // Capture the verified component counts and variances.
         const variances = order.verificationItems.map(
           (item) => ({
             componentId: item.componentId,
             componentName: item.component.componentName,
             expectedQty: item.expectedQty,
             actualQty: item.actualQty,
-            variance: item.actualQty! - item.expectedQty,
+            variance:
+              (item.actualQty ?? 0) - item.expectedQty,
             status: item.status,
           })
         );
 
-        // Record approval decision and status change atomically.
+        // Audit log and status transition occur within
+        // the same transaction.
         const log = await tx.verificationLog.create({
           data: {
             orderId,
@@ -145,7 +168,7 @@ export async function POST(
           },
         });
 
-        const updated = await tx.cuttingOrder.update({
+        const updatedOrder = await tx.cuttingOrder.update({
           where: { id: orderId },
           data: {
             status: "VERIFIED",
@@ -158,13 +181,16 @@ export async function POST(
         });
 
         return {
-          order: updated,
+          order: updatedOrder,
           logId: log.id,
-          wastagePct: wastagePct.toDecimalPlaces(2).toString(),
+          wastagePct: wastagePct
+            .toDecimalPlaces(2)
+            .toString(),
         };
       },
       {
-        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+        isolationLevel:
+          Prisma.TransactionIsolationLevel.ReadCommitted,
         timeout: 10000,
       }
     );
@@ -191,7 +217,7 @@ export async function POST(
     if (error instanceof ApprovalBlockedError) {
       return NextResponse.json(
         { error: error.message },
-        { status: 409 }
+        { status: error.statusCode }
       );
     }
 

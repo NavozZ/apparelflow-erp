@@ -189,7 +189,90 @@ Recommended future improvements are:
 8. Improve form behavior when unsaved changes are present.
 9. Add operational logging, performance monitoring, and automated deployment checks.
 
-## 10. Conclusion
+
+
+## 10. Assessment-Specific AI Code Review and Human Refactoring
+
+### 10.1 Tools and Prompting
+
+ChatGPT was used for incremental development guidance, architecture planning,
+Prisma integration, Next.js troubleshooting, UI implementation, and test design.
+
+Rather than generating the complete application in one step, the development
+process followed small feature implementations, terminal verification, error
+inspection, and corrective iterations.
+
+### 10.2 Flawed AI Implementation: Incorrect HTTP Status Codes
+
+**Problem:** The initial approval implementation returned HTTP 409 for all
+ApprovalBlockedError cases, including incomplete component counts and shortages.
+
+**Why it mattered:** The assessment specifically requires HTTP 422 for
+component validation failures. HTTP 409 is appropriate for invalid workflow
+state transitions, not every business validation failure.
+
+**Correction:** Introduced explicit error status codes to distinguish
+404 Not Found, 409 Conflict, and 422 Unprocessable Entity.
+
+**Verification:** Added an API-handler test confirming a RED shortage
+returns HTTP 422 without creating an approval log or updating the order.
+
+### 10.3 Flawed AI Implementation: Incomplete Test Coverage
+
+**Problem:** The initial AI-assisted test suite tested business-rule utility
+functions but did not exercise authentication or API handlers.
+
+**Why it mattered:** Pure-function tests alone could not demonstrate that
+protected endpoints reject unauthorized requests or enforce workflow rules.
+
+**Correction:** Added five mocked API-handler tests covering successful
+approval, RED shortage rejection, mandatory rejection notes, forbidden
+approval requests, and database-query filtering in the Sewing Queue.
+
+**Verification:** The expanded suite contains 17 passing tests across
+two test files.
+
+### 10.4 Defensive Architecture
+
+The application enforces role permissions on the server using authenticated
+session information and database-backed user-role checks.
+
+Component verification and approval operations coordinate through
+PostgreSQL order-level row locking. Approval status changes and verification
+audit records are persisted in a single database transaction.
+
+The Sewing Queue applies a VERIFIED status condition directly in the
+database query, rather than relying on client-side filtering.
+
+The verification_logs table also has a PostgreSQL trigger that rejects
+ordinary UPDATE and DELETE operations.
+
+These controls reduce unauthorized status changes and accidental modification
+of historical audit information.
+
+### 10.5 Final Verification Evidence
+
+- Prisma Client generation: Passed
+- TypeScript: Passed
+- ESLint: Passed
+- Automated tests: 17/17 passed
+- Next.js production build: Passed
+- Prisma migration deployment: Up to date
+
+The five API-handler tests use mocked authentication and database access.
+They are not a substitute for full database integration or browser E2E tests.
+
+### 10.6 Remaining Limitations
+
+Further work includes resolving outstanding dependency security advisories,
+reviewing Supabase database access controls and Row-Level Security,
+conducting automated concurrency tests, and expanding E2E coverage.
+
+The audit trigger blocks ordinary record updates and deletions, but privileged
+database administrators can still modify or disable database protections.
+
+
+## 11. Conclusion
 
 AI assistance was used as a practical software engineering support tool throughout ApparelFlow ERP development.
 
