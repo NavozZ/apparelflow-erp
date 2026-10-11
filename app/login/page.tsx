@@ -3,7 +3,7 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { auth, signIn } from "@/auth";
-
+import DemoRoleSelector from "@/components/auth/DemoRoleSelector";
 
 export const instant = false;
 
@@ -72,50 +72,9 @@ export default async function LoginPage({
   </div>
 )}
 
-        <form action={loginAction} className="mt-8 space-y-5">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Email
-            </label>
-
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="username"
-              required
-              className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Password
-            </label>
-
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
-          >
-            Sign In
-          </button>
-        </form>
+      <form action={loginAction} className="mt-8">
+         <DemoRoleSelector />
+      </form>
       </div>
     </main>
   );

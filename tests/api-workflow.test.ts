@@ -52,10 +52,7 @@ vi.mock("next/server", async (importOriginal) => {
   };
 });
 
-import {
-  AuthenticationError,
-  AuthorizationError,
-} from "@/lib/authorization";
+import { AuthorizationError } from "@/lib/authorization";
 
 import { POST as approveOrder } from
   "@/app/api/cutting-orders/[id]/approve/route";
